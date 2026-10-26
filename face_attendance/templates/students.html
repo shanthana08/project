@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Students{% endblock %}
+{% block page_title %}Registered Students{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header space-between">
+    <h3><i class="fa-solid fa-users"></i> All Students ({{ students|length }})</h3>
+    <a href="{{ url_for('register_page') }}" class="btn btn-primary">
+      <i class="fa-solid fa-user-plus"></i> Register New
+    </a>
+  </div>
+
+  <!-- Search bar -->
+  <div class="card-toolbar">
+    <input type="text" id="searchInput" class="form-input" placeholder="Search by name, ID or department…" oninput="filterTable()"/>
+  </div>
+
+  <div class="card-body p-0">
+    {% if students %}
+    <table class="data-table" id="studentsTable">
+      <thead>
+        <tr>
+          <th>#</th><th>Student ID</th><th>Name</th>
+          <th>Department</th><th>Year</th><th>Email</th><th>Phone</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><code>{{ s.student_id }}</code></td>
+          <td><strong>{{ s.name }}</strong></td>
+          <td>{{ s.department }}</td>
+          <td>Year {{ s.year }}</td>
+          <td>{{ s.email or '—' }}</td>
+          <td>{{ s.phone or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <i class="fa-solid fa-user-slash"></i>
+      <p>No students registered yet.</p>
+      <a href="{{ url_for('register_page') }}" class="btn btn-primary">Register First Student</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable() {
+  const q = document.getElementById("searchInput").value.toLowerCase();
+  document.querySelectorAll("#studentsTable tbody tr").forEach(row => {
+    row.style.display = row.innerText.toLowerCase().includes(q) ? "" : "none";
+  });
+}
+</script>
+{% endblock %}

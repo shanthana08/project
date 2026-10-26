@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Live Attendance{% endblock %}
+{% block page_title %}Live Attendance{% endblock %}
+
+{% block content %}
+<div class="row-2">
+
+  <!-- ── Video Feed ── -->
+  <div class="card">
+    <div class="card-header space-between">
+      <h3><i class="fa-solid fa-video"></i> Camera Feed</h3>
+      <span class="badge" id="sessionBadge" style="background:#374151">Idle</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="cam-wrap full-w">
+        <img id="videoFeed" src="" alt="Camera feed" style="display:none; width:100%; border-radius:0 0 8px 8px;"/>
+        <div class="cam-overlay" id="feedOverlay">
+          <i class="fa-solid fa-camera-slash fa-3x"></i>
+          <p>Session not started</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card-footer">
+      <div class="form-group inline-group">
+        <label>Subject</label>
+        <select id="subjectSelect" class="form-input">
+          <option value="General">General</option>
+          {% for s in subjects %}
+          <option value="{{ s.code }}">{{ s.code }} – {{ s.name }}</option>
+          {% endfor %}
+          <option value="__custom">Custom…</option>
+        </select>
+      </div>
+      <input id="customSubject" class="form-input" placeholder="Enter subject name"
+             style="display:none; margin-top:8px;"/>
+      <div class="form-group inline-group mt-1">
+        <label>Class Start (optional)</label>
+        <input id="classStart" type="time" class="form-input"/>
+      </div>
+      <div class="cam-controls mt-1">
+        <button id="startBtn" class="btn btn-green" onclick="startSession()">
+          <i class="fa-solid fa-play"></i> Start Session
+        </button>
+        <button id="stopBtn" class="btn btn-red" onclick="stopSession()" disabled>
+          <i class="fa-solid fa-stop"></i> Stop & Export
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Live Log ── -->
+  <div class="card">
+    <div class="card-header space-between">
+      <h3><i class="fa-solid fa-list-check"></i> Live Log</h3>
+      <span class="pill" id="markedCount">0 marked</span>
+    </div>
+    <div class="card-body p-0" style="max-height:520px; overflow-y:auto;" id="liveLog">
+      <div class="empty-state small" id="logEmpty">
+        <i class="fa-solid fa-inbox"></i>
+        <p>Waiting for faces…</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let sessionActive = false;
+let pollTimer     = null;
+let logSince      = 0;
+
+document.getElementById("subjectSelect").addEventListener("change", function() {
+  document.getElementById("customSubject").style.display =
+    this.value === "__custom" ? "block" : "none";
+});
+
+function getSubject() {
+  const sel = document.getElementById("subjectSelect").value;
+  if (sel === "__custom") return document.getElementById("customSubject").value.trim() || "General";
+  return sel;
+}
+
+async function startSession() {
+  const subject = getSubject();
+  const res  = await fetch("/api/start_session", {
+    method: "POST",
+    headers: { "Content-Type":"application/json" },
+    body: JSON.stringify({ subject })
+  });
+  const json = await res.json();
+  if (!json.success) return alert("Failed to start session.");
+
+  sessionActive = true;
+  logSince      = 0;
+  document.getElementById("liveLog").innerHTML =
+    `<div class="empty-state small" id="logEmpty"><i class="fa-solid fa-inbox"></i><p>Waiting for faces…</p></div>`;
+
+  // Show video feed
+  document.getElementById("feedOverlay").style.display = "none";
+  document.getElementById("videoFeed").src     = "/video_feed?" + Date.now();
+  document.getElementById("videoFeed").style.display = "block";
+
+  document.getElementById("sessionBadge").textContent   = `● ${subject}`;
+  document.getElementById("sessionBadge").style.background = "#16a34a";
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("stopBtn").disabled  = false;
+
+  // Start polling log
+  pollTimer = setInterval(pollLog, 1500);
+}
+
+async function stopSession() {
+  clearInterval(pollTimer);
+  const res  = await fetch("/api/stop_session", { method:"POST" });
+  const json = await res.json();
+
+  sessionActive = false;
+  document.getElementById("videoFeed").src = "";
+  document.getElementById("videoFeed").style.display = "none";
+  document.getElementById("feedOverlay").style.display = "flex";
+
+  document.getElementById("sessionBadge").textContent   = "Stopped";
+  document.getElementById("sessionBadge").style.background = "#374151";
+  document.getElementById("startBtn").disabled = false;
+  document.getElementById("stopBtn").disabled  = true;
+
+  alert(`Session ended. ${json.marked} students marked.\nCSV has been saved to /reports folder.`);
+}
+
+async function pollLog() {
+  const res  = await fetch(`/api/attendance_log?since=${logSince}`);
+  const json = await res.json();
+
+  if (json.entries.length > 0) {
+    const logEl  = document.getElementById("liveLog");
+    const empty  = document.getElementById("logEmpty");
+    if (empty) empty.remove();
+
+    json.entries.forEach(e => {
+      const row = document.createElement("div");
+      row.className = "log-row animate-in";
+      row.innerHTML = `
+        <div class="log-icon"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="log-info">
+          <strong>${e.name}</strong>
+          <small>${e.sid}</small>
+        </div>
+        <div class="log-meta">
+          <span class="badge badge-present">Present</span>
+          <small>${e.time}</small>
+        </div>`;
+      logEl.prepend(row);
+    });
+
+    logSince = json.total;
+    document.getElementById("markedCount").textContent = json.total + " marked";
+  }
+}
+</script>
+{% endblock %}

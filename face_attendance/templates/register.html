@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Register Student{% endblock %}
+{% block page_title %}Register New Student{% endblock %}
+
+{% block content %}
+<div class="row-2">
+
+  <!-- ── Form ── -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fa-solid fa-user-plus"></i> Student Details</h3>
+    </div>
+    <div class="card-body">
+      <div class="form-group">
+        <label>Student ID *</label>
+        <input id="f_id"   class="form-input" placeholder="e.g. CS2021001" />
+      </div>
+      <div class="form-group">
+        <label>Full Name *</label>
+        <input id="f_name" class="form-input" placeholder="Full name" />
+      </div>
+      <div class="form-group">
+        <label>Department *</label>
+        <select id="f_dept" class="form-input">
+          <option value="">Select department</option>
+          <option>Computer Science</option>
+          <option>Information Technology</option>
+          <option>Electronics</option>
+          <option>Mechanical</option>
+          <option>Civil</option>
+          <option>Electrical</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Year *</label>
+        <select id="f_year" class="form-input">
+          <option value="1">Year 1</option>
+          <option value="2">Year 2</option>
+          <option value="3" selected>Year 3</option>
+          <option value="4">Year 4</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input id="f_email" class="form-input" type="email" placeholder="student@college.edu" />
+      </div>
+      <div class="form-group">
+        <label>Phone</label>
+        <input id="f_phone" class="form-input" type="tel" placeholder="10-digit number" />
+      </div>
+
+      <div id="reg-status" class="alert" style="display:none;"></div>
+
+      <button id="submitBtn" class="btn btn-primary btn-full" onclick="submitRegistration()" disabled>
+        <i class="fa-solid fa-floppy-disk"></i> Register Student
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Webcam ── -->
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fa-solid fa-camera"></i> Face Capture</h3>
+    </div>
+    <div class="card-body flex-col center">
+
+      <div class="cam-wrap">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="snapCanvas" style="display:none;"></canvas>
+        <div class="cam-overlay" id="camOverlay">
+          <i class="fa-solid fa-camera-slash fa-2x"></i>
+          <p>Camera off</p>
+        </div>
+      </div>
+
+      <div class="sample-count">
+        <span id="sampleCount">0</span> / 10 samples captured
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="cam-controls">
+        <button class="btn btn-outline" onclick="startCamera()">
+          <i class="fa-solid fa-play"></i> Start Camera
+        </button>
+        <button class="btn btn-green" id="captureBtn" onclick="captureFrame()" disabled>
+          <i class="fa-solid fa-camera"></i> Capture
+        </button>
+        <button class="btn btn-yellow" onclick="autoCapture()" id="autoBtn" disabled>
+          <i class="fa-solid fa-bolt"></i> Auto (10x)
+        </button>
+        <button class="btn btn-red" onclick="stopCamera()">
+          <i class="fa-solid fa-stop"></i> Stop
+        </button>
+      </div>
+
+      <!-- Thumbnail strip -->
+      <div class="thumb-strip" id="thumbStrip"></div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let stream       = null;
+let capturedImages = [];
+const NEEDED     = 10;
+
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({ video: { width:640, height:480 }, audio: false })
+    .then(s => {
+      stream = s;
+      const vid = document.getElementById("webcam");
+      vid.srcObject = s;
+      document.getElementById("camOverlay").style.display = "none";
+      document.getElementById("captureBtn").disabled = false;
+      document.getElementById("autoBtn").disabled    = false;
+    })
+    .catch(e => showAlert("Cannot access camera: " + e.message, "error"));
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById("camOverlay").style.display = "flex";
+  document.getElementById("captureBtn").disabled = true;
+  document.getElementById("autoBtn").disabled    = true;
+}
+
+function captureFrame() {
+  if (!stream) return;
+  const vid    = document.getElementById("webcam");
+  const canvas = document.getElementById("snapCanvas");
+  canvas.width  = vid.videoWidth  || 640;
+  canvas.height = vid.videoHeight || 480;
+  canvas.getContext("2d").drawImage(vid, 0, 0);
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+  capturedImages.push(dataUrl);
+  addThumbnail(dataUrl);
+  updateProgress();
+}
+
+function autoCapture() {
+  if (!stream) return showAlert("Start the camera first.", "error");
+  let count = 0;
+  const interval = setInterval(() => {
+    captureFrame();
+    count++;
+    if (count >= NEEDED) clearInterval(interval);
+  }, 500);
+}
+
+function addThumbnail(dataUrl) {
+  const strip = document.getElementById("thumbStrip");
+  const img   = document.createElement("img");
+  img.src     = dataUrl;
+  img.className = "thumb";
+  strip.appendChild(img);
+  strip.scrollLeft = strip.scrollWidth;
+}
+
+function updateProgress() {
+  const n   = capturedImages.length;
+  const pct = Math.min((n / NEEDED) * 100, 100);
+  document.getElementById("sampleCount").textContent = n;
+  document.getElementById("progressBar").style.width = pct + "%";
+  document.getElementById("submitBtn").disabled = (n < 3);
+}
+
+async function submitRegistration() {
+  const sid  = document.getElementById("f_id").value.trim().toUpperCase();
+  const name = document.getElementById("f_name").value.trim();
+  const dept = document.getElementById("f_dept").value;
+  const year = document.getElementById("f_year").value;
+
+  if (!sid || !name || !dept) {
+    return showAlert("Student ID, Name, and Department are required.", "error");
+  }
+  if (capturedImages.length < 3) {
+    return showAlert("Capture at least 3 face images first.", "error");
+  }
+
+  const btn = document.getElementById("submitBtn");
+  btn.disabled   = true;
+  btn.innerHTML  = '<i class="fa-solid fa-spinner fa-spin"></i> Processing…';
+
+  try {
+    const res  = await fetch("/api/register", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id: sid, name, department: dept, year: parseInt(year),
+        email: document.getElementById("f_email").value.trim(),
+        phone: document.getElementById("f_phone").value.trim(),
+        images: capturedImages
+      })
+    });
+    const json = await res.json();
+    if (json.success) {
+      showAlert(`✅ ${json.message}  (${json.samples} samples)`, "success");
+      capturedImages = [];
+      document.getElementById("thumbStrip").innerHTML = "";
+      updateProgress();
+      stopCamera();
+    } else {
+      showAlert("❌ " + json.message, "error");
+    }
+  } catch(e) {
+    showAlert("Network error: " + e.message, "error");
+  } finally {
+    btn.disabled  = false;
+    btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Register Student';
+  }
+}
+
+function showAlert(msg, type) {
+  const el = document.getElementById("reg-status");
+  el.className  = `alert alert-${type}`;
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => el.style.display="none", 6000);
+}
+</script>
+{% endblock %}

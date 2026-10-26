@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Stat Cards ── -->
+<div class="stat-grid">
+  <div class="stat-card blue">
+    <div class="stat-icon"><i class="fa-solid fa-users"></i></div>
+    <div class="stat-body">
+      <p class="stat-label">Total Students</p>
+      <p class="stat-value">{{ total_students }}</p>
+    </div>
+  </div>
+  <div class="stat-card green">
+    <div class="stat-icon"><i class="fa-solid fa-circle-check"></i></div>
+    <div class="stat-body">
+      <p class="stat-label">Present Today</p>
+      <p class="stat-value">{{ present_today }}</p>
+    </div>
+  </div>
+  <div class="stat-card red">
+    <div class="stat-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+    <div class="stat-body">
+      <p class="stat-label">Absent Today</p>
+      <p class="stat-value">{{ absent_today }}</p>
+    </div>
+  </div>
+  <div class="stat-card yellow">
+    <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+    <div class="stat-body">
+      <p class="stat-label">Late Today</p>
+      <p class="stat-value">{{ late_today }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Charts Row ── -->
+<div class="row-2">
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fa-solid fa-chart-pie"></i> Department-wise Attendance</h3>
+    </div>
+    <div class="card-body chart-wrap">
+      <canvas id="deptChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3><i class="fa-solid fa-chart-column"></i> Attendance Rate</h3>
+    </div>
+    <div class="card-body chart-wrap">
+      <canvas id="rateChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ── Today's Log ── -->
+<div class="card mt-1">
+  <div class="card-header space-between">
+    <h3><i class="fa-solid fa-list-check"></i> Today's Attendance Log</h3>
+    <a href="{{ url_for('reports_page') }}" class="btn btn-sm btn-outline">View All</a>
+  </div>
+  <div class="card-body p-0">
+    {% if today_att %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Student ID</th><th>Name</th>
+          <th>Department</th><th>Time In</th><th>Subject</th><th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in today_att %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><code>{{ r.student_id }}</code></td>
+          <td>{{ r.student_name }}</td>
+          <td>{{ r.department }}</td>
+          <td>{{ r.time_in }}</td>
+          <td>{{ r.subject }}</td>
+          <td><span class="badge badge-{{ r.status|lower }}">{{ r.status }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <i class="fa-solid fa-calendar-xmark"></i>
+      <p>No attendance marked yet today.</p>
+      <a href="{{ url_for('attendance_page') }}" class="btn btn-primary">Start Attendance</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const deptLabels = {{ dept_labels | tojson }};
+const deptData   = {{ dept_data   | tojson }};
+const total      = {{ total_students }};
+const present    = {{ present_today }};
+const absent     = {{ absent_today }};
+
+// Dept pie chart
+new Chart(document.getElementById("deptChart"), {
+  type: "doughnut",
+  data: {
+    labels: deptLabels.length ? deptLabels : ["No Data"],
+    datasets: [{
+      data: deptData.length ? deptData : [1],
+      backgroundColor: ["#4f8ef7","#22c55e","#f59e0b","#ef4444","#a855f7","#06b6d4"],
+      borderWidth: 2,
+      borderColor: "#1e2235"
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: "bottom", labels: { color:"#cbd5e1" }}}
+  }
+});
+
+// Present/Absent bar
+new Chart(document.getElementById("rateChart"), {
+  type: "bar",
+  data: {
+    labels: ["Present","Absent","Late"],
+    datasets: [{
+      data: [present, absent, {{ late_today }}],
+      backgroundColor: ["#22c55e","#ef4444","#f59e0b"],
+      borderRadius: 8
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false }},
+    scales: {
+      x: { ticks: { color:"#94a3b8" }, grid: { color:"#2d3448" }},
+      y: { ticks: { color:"#94a3b8" }, grid: { color:"#2d3448" }, beginAtZero: true }
+    }
+  }
+});
+</script>
+{% endblock %}

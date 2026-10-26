@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Attendance Reports{% endblock %}
+
+{% block content %}
+
+<!-- ── Report Tabs ── -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('today',   this)">Today</button>
+  <button class="tab-btn"        onclick="switchTab('byDate',  this)">By Date</button>
+  <button class="tab-btn"        onclick="switchTab('student', this)">By Student</button>
+  <button class="tab-btn"        onclick="switchTab('summary', this)">Summary %</button>
+</div>
+
+<!-- ═══════════════ TODAY TAB ═══════════════ -->
+<div class="tab-panel active" id="tab-today">
+  <div class="card">
+    <div class="card-header space-between">
+      <h3><i class="fa-solid fa-calendar-day"></i> Today's Attendance</h3>
+      <div class="btn-group">
+        <select id="todaySubject" class="form-input sm">
+          <option value="">All Subjects</option>
+          {% for s in subjects %}
+          <option value="{{ s.code }}">{{ s.code }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline" onclick="loadToday()">
+          <i class="fa-solid fa-rotate"></i> Load
+        </button>
+        <a id="exportToday" href="/api/export/csv?type=today" class="btn btn-green">
+          <i class="fa-solid fa-file-csv"></i> Export CSV
+        </a>
+      </div>
+    </div>
+    <div class="card-body p-0" id="todayBody">
+      <div class="empty-state"><i class="fa-solid fa-rotate"></i><p>Click Load to fetch records.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ BY DATE TAB ═══════════════ -->
+<div class="tab-panel" id="tab-byDate">
+  <div class="card">
+    <div class="card-header space-between">
+      <h3><i class="fa-solid fa-calendar"></i> Attendance by Date</h3>
+      <div class="btn-group">
+        <input type="date" id="dateInput" class="form-input sm"
+               value="{{ '' }}" max="{{ '' }}"/>
+        <select id="dateSubject" class="form-input sm">
+          <option value="">All Subjects</option>
+          {% for s in subjects %}
+          <option value="{{ s.code }}">{{ s.code }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline" onclick="loadByDate()">
+          <i class="fa-solid fa-rotate"></i> Load
+        </button>
+        <button class="btn btn-green" onclick="exportByDate()">
+          <i class="fa-solid fa-file-csv"></i> Export
+        </button>
+      </div>
+    </div>
+    <div class="card-body p-0" id="dateBody">
+      <div class="empty-state"><i class="fa-solid fa-calendar"></i><p>Pick a date and click Load.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ STUDENT TAB ═══════════════ -->
+<div class="tab-panel" id="tab-student">
+  <div class="card">
+    <div class="card-header space-between">
+      <h3><i class="fa-solid fa-user"></i> Student Attendance</h3>
+      <div class="btn-group">
+        <select id="studentSelect" class="form-input sm">
+          <option value="">Select student…</option>
+          {% for s in students %}
+          <option value="{{ s.student_id }}">{{ s.student_id }} – {{ s.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline" onclick="loadStudent()">
+          <i class="fa-solid fa-rotate"></i> Load
+        </button>
+        <button class="btn btn-green" onclick="exportStudent()">
+          <i class="fa-solid fa-file-csv"></i> Export
+        </button>
+      </div>
+    </div>
+    <div class="card-body p-0" id="studentBody">
+      <div class="empty-state"><i class="fa-solid fa-user-clock"></i><p>Select a student and click Load.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ SUMMARY TAB ═══════════════ -->
+<div class="tab-panel" id="tab-summary">
+  <div class="card">
+    <div class="card-header space-between">
+      <h3><i class="fa-solid fa-percent"></i> Attendance Percentage – All Students</h3>
+      <div class="btn-group">
+        <button class="btn btn-outline" onclick="loadSummary()">
+          <i class="fa-solid fa-rotate"></i> Load
+        </button>
+        <a href="/api/export/csv?type=summary" class="btn btn-green">
+          <i class="fa-solid fa-file-csv"></i> Export CSV
+        </a>
+      </div>
+    </div>
+    <div class="card-body p-0" id="summaryBody">
+      <div class="empty-state"><i class="fa-solid fa-chart-bar"></i><p>Click Load to see summary.</p></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Tabs ──
+function switchTab(name, btn) {
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  btn.classList.add("active");
+}
+
+// ── Render helpers ──
+function renderTable(records, containerId) {
+  const el = document.getElementById(containerId);
+  if (!records.length) {
+    el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-inbox"></i><p>No records found.</p></div>`;
+    return;
+  }
+  const headers = Object.keys(records[0]);
+  let html = `<table class="data-table"><thead><tr>`;
+  headers.forEach(h => html += `<th>${h.replace(/_/g," ").toUpperCase()}</th>`);
+  html += `</tr></thead><tbody>`;
+  records.forEach(r => {
+    html += `<tr>`;
+    headers.forEach(h => {
+      let val = r[h] ?? "—";
+      if (h === "status") val = `<span class="badge badge-${String(val).toLowerCase()}">${val}</span>`;
+      if (h === "attendance_pct") val = `<strong>${val}%</strong>`;
+      html += `<td>${val}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  el.innerHTML = html;
+}
+
+// ── Loaders ──
+async function loadToday() {
+  const sub = document.getElementById("todaySubject").value;
+  const res = await fetch(`/api/report/today?subject=${sub}`);
+  const j   = await res.json();
+  renderTable(j.records, "todayBody");
+  // Update export link
+  document.getElementById("exportToday").href =
+    `/api/export/csv?type=today&subject=${sub}`;
+}
+
+async function loadByDate() {
+  const d   = document.getElementById("dateInput").value;
+  const sub = document.getElementById("dateSubject").value;
+  if (!d) return alert("Pick a date first.");
+  const res = await fetch(`/api/report/date?date=${d}&subject=${sub}`);
+  const j   = await res.json();
+  renderTable(j.records, "dateBody");
+}
+
+function exportByDate() {
+  const d   = document.getElementById("dateInput").value;
+  const sub = document.getElementById("dateSubject").value;
+  if (!d) return alert("Pick a date first.");
+  window.location.href = `/api/export/csv?type=date&date=${d}&subject=${sub}`;
+}
+
+async function loadStudent() {
+  const sid = document.getElementById("studentSelect").value;
+  if (!sid) return alert("Select a student.");
+  const res = await fetch(`/api/report/student?student_id=${sid}`);
+  const j   = await res.json();
+  renderTable(j.records, "studentBody");
+}
+
+function exportStudent() {
+  const sid = document.getElementById("studentSelect").value;
+  if (!sid) return alert("Select a student.");
+  window.location.href = `/api/export/csv?type=student&student_id=${sid}`;
+}
+
+async function loadSummary() {
+  const res = await fetch("/api/report/summary");
+  const j   = await res.json();
+  renderTable(j.records, "summaryBody");
+}
+
+// Set today's date default
+document.getElementById("dateInput").value = new Date().toISOString().split("T")[0];
+// Auto load today on page open
+loadToday();
+</script>
+{% endblock %}
